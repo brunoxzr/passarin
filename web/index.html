@@ -4,38 +4,140 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>adepassaro</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,560&family=Outfit:wght@340;560&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/src/style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
-  <body>
+  <body data-screen="loading">
     <canvas id="view"></canvas>
-    <header id="hud">
-      <div class="brand">
-        <span class="mark">adepassaro</span>
-        <span class="score" id="score">0</span>
-      </div>
-      <p class="status" id="status"></p>
-    </header>
-    <div class="preview-wrap" id="pip">
-      <img id="preview" alt="Corpo na webcam" />
-      <div id="preview-fallback">webcam</div>
-    </div>
-    <section id="calib">
-      <div class="card">
-        <div class="copy">
-          <p class="eyebrow" id="eyebrow">alinhar postura</p>
-          <h1>adepassaro</h1>
-          <p class="lead" id="lead">Braços abertos. Suba os dois para ganhar altura. Incline um braço para virar — o corpo pode ficar parado.</p>
-          <div class="stable"><div class="bar"><div id="stable-fill"></div></div><span id="stable-label">Conectando o corpo…</span></div>
-          <div class="actions">
-            <button id="btn-cal" type="button">Alinhar e voar</button>
-            <button id="btn-invert" type="button" class="ghost">Inverter mergulho</button>
-            <button id="btn-swap" type="button" class="ghost">Inverter asas</button>
-          </div>
-        </div>
-      </div>
+    <div id="lids" aria-hidden="true"><div class="lid top"></div><div class="lid bottom"></div></div>
+    <div id="flash" aria-hidden="true"></div>
+
+    <section id="loading" class="screen">
+      <p class="title small">adepassaro</p>
+      <div class="loadbar"><i id="load-fill"></i></div>
+      <p class="kicker" id="load-label">preparando o vale</p>
     </section>
+
+    <section id="menu" class="screen">
+      <div class="menu-col">
+        <p class="kicker">voe com o corpo inteiro</p>
+        <h1 class="title">adepassaro</h1>
+        <p class="tag">Você acorda no alto de um vale. Abra os braços — o resto é céu.</p>
+        <nav class="list" id="menu-list">
+          <button data-action="play"><span class="n">01</span>Jogar</button>
+          <button data-action="bird"><span class="n">02</span>Pássaro <em id="bird-name">Cegonha</em><span class="arrows">‹ ›</span></button>
+          <button data-action="mirror"><span class="n">03</span>Virar pássaro</button>
+          <button data-action="howto"><span class="n">04</span>Como voar</button>
+          <button data-action="settings"><span class="n">05</span>Ajustes</button>
+        </nav>
+        <p class="gesture"><span class="hold" id="menu-hold"></span>Levante os dois braços por 2 segundos para jogar</p>
+        <p class="credits" id="credits"></p>
+      </div>
+
+      <aside class="panel" id="panel-bird">
+        <p class="kicker">pássaro</p>
+        <h2 id="bird-title">Cegonha</h2>
+        <p id="bird-blurb"></p>
+        <dl class="stats" id="bird-stats"></dl>
+        <p class="best" id="bird-best"></p>
+      </aside>
+
+      <aside class="panel" id="panel-howto" hidden>
+        <p class="kicker">como voar</p>
+        <h2>Seu corpo é o pássaro.</h2>
+        <ol class="howto">
+          <li><b>Bata as asas</b> — suba e desça os dois braços para decolar.</li>
+          <li><b>Ganhar altura</b> — bata as asas: desça os braços e levante de novo. Cada batida é um degrau para cima.</li>
+          <li><b>Empinar</b> — braços lá no alto e olhe para cima. Com embalo, vira looping.</li>
+          <li><b>Subir retão</b> — braços esticados lá em cima, na vertical. Segure para continuar subindo.</li>
+          <li><b>Mergulhar</b> — cruze os braços no peito, como para descer um tobogã, e olhe para baixo: quanto mais baixo olhar, mais fundo. Ou aponte os dois braços para frente e para baixo.</li>
+          <li><b>Virar</b> — um braço mais alto que o outro. Bem inclinado = curva fechada; no máximo = parafuso.</li>
+          <li><b>Planar</b> — braços abertos: desce bem devagar.</li>
+          <li><b>Olhar</b> — no chão, vire a cabeça para olhar ao redor.</li>
+        </ol>
+        <p class="note">Atravesse os anéis dourados. Bater forte em montanha, árvore ou pedra mata. Rasante suave no chão, não.</p>
+        <p class="note">Sem webcam: mouse olha, <kbd>Espaço</kbd> decola, <kbd>E</kbd> bate asa, <kbd>W</kbd> empina, <kbd>S</kbd> mergulha, <kbd>A D</kbd> viram, <kbd>Esc</kbd> pausa.</p>
+      </aside>
+
+      <aside class="panel" id="panel-settings" hidden>
+        <p class="kicker">ajustes</p>
+        <h2>Ajustes</h2>
+        <div class="list small" id="settings-list">
+          <button data-setting="quality">Qualidade <em id="set-quality">leve</em></button>
+          <button data-setting="invert">Mergulho <em id="set-invert">normal</em></button>
+          <button data-setting="swap">Asas <em id="set-swap">normal</em></button>
+          <button data-setting="calibrate">Recalibrar postura</button>
+        </div>
+      </aside>
+    </section>
+
+    <section id="intro" aria-live="polite">
+      <p id="intro-line"></p>
+      <p id="intro-hint"></p>
+      <div id="intro-bar" hidden><i id="intro-fill"></i></div>
+    </section>
+
+    <header id="hud">
+      <div class="hud-block">
+        <span class="hud-label">anéis</span>
+        <span class="hud-big"><b id="hud-rings">00</b><small>/<span id="hud-total">00</span></small></span>
+      </div>
+      <div class="hud-block right">
+        <span class="hud-label">tempo</span>
+        <span class="hud-big" id="hud-time">00:00.0</span>
+      </div>
+      <div class="hud-speed"><b id="hud-speed">0</b><span>km/h</span></div>
+      <p class="hud-hint" id="hud-hint"></p>
+    </header>
+    <div id="marker" hidden><i></i><span id="marker-dist"></span></div>
+
+    <section id="pause" class="screen overlay">
+      <p class="kicker">pausa</p>
+      <h2 class="big">Pausado.</h2>
+      <nav class="list" id="pause-list">
+        <button data-action="resume">Continuar</button>
+        <button data-action="recalibrate">Recalibrar postura</button>
+        <button data-action="menu">Voltar ao menu</button>
+      </nav>
+    </section>
+
+    <section id="death" class="screen overlay">
+      <p class="kicker">fim do voo</p>
+      <h2 class="big">Você morreu.</h2>
+      <p class="cause" id="death-cause"></p>
+      <dl class="result" id="death-stats"></dl>
+      <nav class="list row" id="death-list">
+        <button data-action="retry">Tentar de novo <kbd>Enter</kbd></button>
+        <button data-action="menu">Menu <kbd>Esc</kbd></button>
+      </nav>
+      <p class="gesture"><span class="hold" id="death-hold"></span>ou levante os dois braços</p>
+    </section>
+
+    <section id="finish" class="screen overlay">
+      <p class="kicker">percurso completo</p>
+      <h2 class="big">Que voo.</h2>
+      <dl class="result" id="finish-stats"></dl>
+      <nav class="list row" id="finish-list">
+        <button data-action="retry">Voar de novo <kbd>Enter</kbd></button>
+        <button data-action="menu">Menu <kbd>Esc</kbd></button>
+      </nav>
+    </section>
+
+    <section id="mirror" class="screen">
+      <p class="kicker">virar pássaro</p>
+      <h2>Você é o pássaro.</h2>
+      <p>Mexa os braços, incline, olhe para as asas. A tela é um espelho. <kbd>Esc</kbd> volta ao menu.</p>
+    </section>
+    <pre id="debug" hidden></pre>
+    <div id="inset" hidden><span>de frente</span></div>
+
+    <div id="tracker">
+      <div class="pip" id="pip"><img id="preview" alt="Seu corpo na webcam" /></div>
+      <p><i id="tracker-dot"></i><span id="tracker-label">conectando…</span></p>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

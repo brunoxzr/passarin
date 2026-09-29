@@ -9,14 +9,21 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-LEFT_SHOULDER = 11
-RIGHT_SHOULDER = 12
-LEFT_ELBOW = 13
-RIGHT_ELBOW = 14
-LEFT_WRIST = 15
-RIGHT_WRIST = 16
-LEFT_HIP = 23
-RIGHT_HIP = 24
+# A imagem é espelhada antes do MediaPipe, então o que ele chama de "esquerdo"
+# é o lado DIREITO real do jogador. Os nomes abaixo já são os lados reais.
+NOSE = 0
+LEFT_EAR = 8
+RIGHT_EAR = 7
+LEFT_SHOULDER = 12
+RIGHT_SHOULDER = 11
+LEFT_ELBOW = 14
+RIGHT_ELBOW = 13
+LEFT_WRIST = 16
+RIGHT_WRIST = 15
+LEFT_INDEX = 20
+RIGHT_INDEX = 19
+LEFT_HIP = 24
+RIGHT_HIP = 23
 
 KEY_JOINTS = (
     LEFT_SHOULDER,
@@ -45,6 +52,8 @@ class Measure:
     pitch: float
     roll: float
     confidence: float
+    head: tuple[float, float] | None = None  # (yaw, pitch) crus, em radianos
+    arms: dict | None = None  # vetores 3D de arm_vectors()
 
 
 def _vis(lm) -> float:
@@ -69,7 +78,63 @@ def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
 
-def measure(image, world=None) -> Measure | None:
+def head_angles(image, aspect: float = 4 / 3) -> tuple[float, float] | None:
+    """Direção da cabeça pelo nariz em relação ao meio das orelhas.
+
+    Positivo = olhando para a direita (imagem espelhada) / para cima.
+    """
+    nose, le, re = image[NOSE], image[LEFT_EAR], image[RIGHT_EAR]
+    if min(_vis(nose), _vis(le), _vis(re)) < 0.5:
+        return None
+    spacing = abs(float(le.x) - float(re.x))
+    if spacing < 0.015:
+        return None
+    mid_x = (float(le.x) + float(re.x)) * 0.5
+    mid_y = (float(le.y) + float(re.y)) * 0.5
+    yaw = math.atan(2.0 * (float(nose.x) - mid_x) / spacing)
+    pitch = math.atan(2.0 * (mid_y - float(nose.y)) / (spacing * aspect))
+    return yaw, pitch
+
+
+# Segmentos do braço em 3D: (de, até). Índice do dedo indicador = mão.
+_SEGMENTS = {
+    "l": ((LEFT_SHOULDER, LEFT_ELBOW), (LEFT_ELBOW, LEFT_WRIST), (LEFT_WRIST, LEFT_INDEX)),
+    "r": ((RIGHT_SHOULDER, RIGHT_ELBOW), (RIGHT_ELBOW, RIGHT_WRIST), (RIGHT_WRIST, RIGHT_INDEX)),
+}
+ARM_KEYS = tuple(f"{side}{seg}{axis}" for side in "lr" for seg in "ufh" for axis in "xyz")
+
+
+def arm_vectors(world) -> dict | None:
+    """Direção real (unitária) de braço, antebraço e mão, no espaço do corpo:
+    x = direita do jogador (imagem espelhada), y = cima, z = para trás (longe da câmera)."""
+    if world is None or len(world) < 21:
+        return None
+    out = {}
+    for side, segs in _SEGMENTS.items():
+        for seg, (a, b) in zip("ufh", segs):
+            pa, pb = world[a], world[b]
+            vx = float(pb.x) - float(pa.x)
+            vy = -(float(pb.y) - float(pa.y))
+            vz = float(pb.z) - float(pa.z)
+            n = math.sqrt(vx * vx + vy * vy + vz * vz)
+            if n < 1e-4:
+                return None
+            out[f"{side}{seg}x"] = vx / n
+            out[f"{side}{seg}y"] = vy / n
+            out[f"{side}{seg}z"] = vz / n
+    return out
+
+
+def swap_arm_vectors(v: dict) -> dict:
+    """Troca os lados espelhando x (usado pelo botão 'inverter asas')."""
+    out = {}
+    for key, value in v.items():
+        other = ("r" if key[0] == "l" else "l") + key[1:]
+        out[other] = -value if key.endswith("x") else value
+    return out
+
+
+def measure(image, world=None, aspect: float = 4 / 3) -> Measure | None:
     """Lê landmarks normalizados (imagem) e, se houver, landmarks em metros (mundo)."""
     if image is None or len(image) < 25:
         return None
@@ -106,14 +171,16 @@ def measure(image, world=None) -> Measure | None:
     return Measure(
         left_upper=_clamp(_elevation(ls, le), -1.45, 1.45),
         left_fore=_clamp(_elevation(le, lw), -1.45, 1.45),
-        left_sweep=_clamp(left_sweep * 1.4, -0.8, 0.8),
+        left_sweep=_clamp(left_sweep * 2.2, -0.8, 1.0),
         right_upper=_clamp(_elevation(rs, re), -1.45, 1.45),
         right_fore=_clamp(_elevation(re, rw), -1.45, 1.45),
-        right_sweep=_clamp(right_sweep * 1.4, -0.8, 0.8),
+        right_sweep=_clamp(right_sweep * 2.2, -0.8, 1.0),
         span=span,
         pitch=pitch,
         roll=_clamp(roll, -1.2, 1.2),
         confidence=confidence,
+        head=head_angles(image, aspect),
+        arms=arm_vectors(world),
     )
 
 
@@ -133,15 +200,28 @@ class Damper:
         self.values: dict[str, float] = {}
 
     def pull(self, key: str, target: float, speed: float, dt: float) -> float:
+        # Um NaN/infinito que entrasse aqui ficaria para sempre e travaria o jogo.
+        if not math.isfinite(target):
+            return self.values.get(key, 0.0)
         current = self.values.get(key, target)
+        if not math.isfinite(current):
+            current = target
         alpha = 1.0 - math.exp(-speed * max(dt, 0.0))
         current = current + (target - current) * alpha
         self.values[key] = current
         return current
 
 
-def to_controls(m: Measure, baseline_pitch: float, baseline_roll: float, pitch_sign: float, swap: bool) -> dict:
-    """Converte a medida em alvos do pássaro. Asas são absolutas; tronco é relativo."""
+def to_controls(
+    m: Measure,
+    baseline_pitch: float,
+    baseline_roll: float,
+    pitch_sign: float,
+    swap: bool,
+    head: tuple[float, float] = (0.0, 0.0),
+    arms: dict | None = None,
+) -> dict:
+    """Converte a medida em alvos do pássaro. Asas são absolutas; tronco e cabeça são relativos."""
     left_upper, left_fore, left_sweep = m.left_upper, m.left_fore, m.left_sweep
     right_upper, right_fore, right_sweep = m.right_upper, m.right_fore, m.right_sweep
     if swap:
@@ -151,7 +231,11 @@ def to_controls(m: Measure, baseline_pitch: float, baseline_roll: float, pitch_s
 
     pitch = -(m.pitch - baseline_pitch) / PITCH_METERS * pitch_sign
     roll = (m.roll - baseline_roll) * 1.25
+    vectors = {}
+    if arms:
+        vectors = swap_arm_vectors(arms) if swap else arms
     return {
+        **vectors,
         "leftUpper": left_upper,
         "leftFore": left_fore,
         "leftSweep": left_sweep,
@@ -161,6 +245,8 @@ def to_controls(m: Measure, baseline_pitch: float, baseline_roll: float, pitch_s
         "span": m.span,
         "pitch": _clamp(pitch, -1.15, 1.05),
         "roll": _clamp(roll, -1.15, 1.15),
+        "headYaw": _clamp(head[0], -1.3, 1.3),
+        "headPitch": _clamp(head[1], -0.8, 0.8),
         "confidence": m.confidence,
     }
 
@@ -176,9 +262,12 @@ def smooth_controls(damper: Damper, controls: dict, dt: float) -> dict:
         "span": 10.0,
         "pitch": 8.0,
         "roll": 8.0,
+        "headYaw": 10.0,
+        "headPitch": 10.0,
         "confidence": 6.0,
+        **{key: 14.0 for key in ARM_KEYS},
     }
-    return {key: damper.pull(key, controls[key], speeds[key], dt) for key in speeds}
+    return {key: damper.pull(key, controls[key], speeds[key], dt) for key in speeds if key in controls}
 
 
 def _landmark(x, y, z=0.0, visibility=1.0):
@@ -221,7 +310,14 @@ def _self_check() -> None:
     controls = to_controls(leaning, 0.0, 0.0, 1.0, False)
     assert controls["pitch"] < -0.4, controls["pitch"]
 
+    image[NOSE] = _landmark(0.53, 0.2)
+    image[LEFT_EAR] = _landmark(0.45, 0.2)
+    image[RIGHT_EAR] = _landmark(0.55, 0.2)
+    turned = head_angles(image)
+    assert turned is not None and turned[0] > 0.3, turned
+
     damper = Damper()
+    smooth_controls(damper, {k: 0.0 for k in controls}, 0.016)
     a = smooth_controls(damper, controls, 0.016)
     b = smooth_controls(damper, controls, 0.016)
     assert abs(b["pitch"]) > abs(a["pitch"])
