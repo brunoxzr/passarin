@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>adepassaro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,560&family=Outfit:wght@340;560&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <header id="hud">
+      <div class="brand">
+        <span class="mark">adepassaro</span>
+        <span class="score" id="score">0</span>
+      </div>
+      <p class="status" id="status"></p>
+    </header>
+    <div class="preview-wrap" id="pip">
+      <img id="preview" alt="Corpo na webcam" />
+      <div id="preview-fallback">webcam</div>
+    </div>
+    <section id="calib">
+      <div class="card">
+        <div class="copy">
+          <p class="eyebrow" id="eyebrow">alinhar postura</p>
+          <h1>adepassaro</h1>
+          <p class="lead" id="lead">Braços abertos. Suba os dois para ganhar altura. Incline um braço para virar — o corpo pode ficar parado.</p>
+          <div class="stable"><div class="bar"><div id="stable-fill"></div></div><span id="stable-label">Conectando o corpo…</span></div>
+          <div class="actions">
+            <button id="btn-cal" type="button">Alinhar e voar</button>
+            <button id="btn-invert" type="button" class="ghost">Inverter mergulho</button>
+            <button id="btn-swap" type="button" class="ghost">Inverter asas</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

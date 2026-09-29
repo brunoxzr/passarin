@@ -1,0 +1,7 @@
+.venv/
+web/node_modules/
+web/dist/
+tracker/models/*.task
+__pycache__/
+*.pyc
+.DS_Store
