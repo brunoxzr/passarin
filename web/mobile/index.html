@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#000000" />
+    <title>adepassaro VR</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #000; color: #e9e4d8; overflow: hidden; touch-action: none; }
+      body { font: 15px/1.4 system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+      #eyes { position: fixed; inset: 0; display: flex; }
+      #eyes video { flex: 1; min-width: 0; height: 100%; object-fit: cover; background: #000; }
+      body[data-mode="flat"] #eyes video { object-fit: contain; }
+      #eyes canvas { flex: 1; min-width: 0; height: 100%; display: none; }
+      body[data-src="jpeg"] #eyes video { display: none; }
+      body[data-src="jpeg"] #eyes canvas { display: block; }
+      body[data-src="jpeg"][data-mode="flat"] #cr { display: none; }
+      /* Separador entre os olhos, para o óculos de celular. */
+      #eyes::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: #000; }
+      body[data-mode="flat"] #eyes video + video, body[data-mode="flat"] #eyes::after { display: none; }
+      /* O vídeo nunca é escondido (o Chrome pausaria): só fica coberto até o jogo começar. */
+      #wait { position: fixed; inset: 0; display: flex; background: #000; }
+      #wait > div { flex: 1; display: grid; place-content: center; text-align: center; gap: 6px; padding: 16px; }
+      body[data-mode="flat"] #wait > div + div { display: none; }
+      body[data-live="true"][data-video="true"] #wait { visibility: hidden; }
+      .t { font-size: 20px; font-weight: 700; }
+      .s { opacity: 0.6; font-size: 13px; }
+      #bar { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; transition: opacity .4s; }
+      #bar.hide { opacity: 0; pointer-events: none; }
+      #bar button { font: inherit; color: inherit; background: #222c; border: 1px solid #fff3; border-radius: 999px; padding: 8px 14px; }
+    </style>
+  </head>
+  <body data-mode="vr">
+    <div id="eyes"><video id="left" autoplay playsinline muted></video><video id="right" autoplay playsinline muted></video><canvas id="cl"></canvas><canvas id="cr"></canvas></div>
+    <div id="wait">
+      <div><p class="t" id="msg">conectando…</p><p class="s" id="sub"></p></div>
+      <div><p class="t" id="msg2">conectando…</p><p class="s" id="sub2"></p></div>
+    </div>
+    <div id="bar">
+      <button id="full">Tela cheia</button>
+      <button id="center">Centralizar</button>
+      <button id="mode">Modo: VR</button>
+    </div>
+    <script type="module" src="/mobile/mobile.js"></script>
+  </body>
+</html>

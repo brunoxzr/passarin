@@ -21,6 +21,7 @@ import { createList, renderStats } from "./ui/screens.js";
 import { createPost } from "./render/post.js";
 import { createWind } from "./render/wind.js";
 import { clamp, damp } from "./util/math.js";
+import { createVrStream } from "./net/vrStream.js";
 
 THREE.Cache.enabled = true;
 
@@ -70,6 +71,7 @@ const start = findStart();
 const obstacles = [];
 const menuHold = createHoldDetector(2);
 const deathHold = createHoldDetector(1.6);
+const vr = createVrStream(renderer.domElement);
 
 let bird = null;
 let rings = null;
@@ -83,6 +85,8 @@ const eye = new THREE.Vector3();
 function setScreen(s) {
   screen = s;
   document.body.dataset.screen = s;
+  // O óculos VR só recebe imagem com a partida iniciada (não no carregamento nem no menu).
+  vr.setLive(s !== "loading" && s !== "menu");
 }
 
 // ---------- boot ----------
@@ -379,7 +383,9 @@ function frame(dt, time) {
     next: rings.next, camera, showMarker: screen === "play" && isAirborne(flight),
     hintText: hudHint(p),
   });
+  vr.applyLook(camera);
   post.render();
+  vr.sendFrame();
   renderInsets();
 }
 

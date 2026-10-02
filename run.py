@@ -33,16 +33,32 @@ def ensure_node() -> None:
 
 
 def wait_http(url: str, timeout: float = 40) -> None:
+    import ssl
     import urllib.request
 
+    insecure = ssl._create_unverified_context()  # certificado local autoassinado
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            urllib.request.urlopen(url, timeout=1)
+            urllib.request.urlopen(url, timeout=1, context=insecure)
             return
         except Exception:
             time.sleep(0.3)
     raise SystemExit(f"O jogo não abriu em {url}")
+
+
+def lan_ip() -> str:
+    """IP do PC na rede local (o que o celular/óculos usa para abrir /mobile)."""
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))  # não envia nada, só escolhe a interface
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
 
 
 def main() -> None:
@@ -52,18 +68,21 @@ def main() -> None:
     tracker = subprocess.Popen([str(py), str(ROOT / "tracker" / "pose_server.py"), *extra], cwd=ROOT)
     vite = WEB / "node_modules" / "vite" / "bin" / "vite.js"
     node = shutil.which("node") or "node"
-    web = subprocess.Popen([node, str(vite), "--host", "127.0.0.1", "--port", "5173", "--strictPort"], cwd=WEB)
+    web = subprocess.Popen([node, str(vite), "--host", "0.0.0.0", "--port", "5173", "--strictPort"], cwd=WEB)
     try:
         wait_http("http://127.0.0.1:5173")
         webbrowser.open("http://127.0.0.1:5173")
         print("adepassaro no ar. Ctrl+C encerra.")
+        print(f"Óculos VR: abra http://{lan_ip()}:5173/mobile no celular (mesma rede Wi-Fi).")
         while tracker.poll() is None and web.poll() is None:
             time.sleep(0.4)
     except KeyboardInterrupt:
         pass
     finally:
-        tracker.terminate()
-        web.terminate()
+        # Mata a árvore inteira: senão o Vite segura a porta 5173 e o rastreador a webcam.
+        for proc in (tracker, web):
+            if proc.poll() is None:
+                subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
 
 
 if __name__ == "__main__":
