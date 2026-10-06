@@ -64,10 +64,26 @@ function vrRelay() {
           set.add(ws);
           ws.on("close", () => { set.delete(ws); announce(); });
           ws.on("error", () => {});
+          const toHosts = (msg) => { for (const h of frameHosts) if (h.readyState === 1) h.send(msg); };
           if (role === "host") {
             ws.on("message", (data, isBinary) => {
               if (!isBinary) return;
-              for (const v of frameViewers) if (v.readyState === 1 && v.bufferedAmount < 1_000_000) v.send(data, { binary: true });
+              const now = Date.now();
+              for (const v of frameViewers) {
+                if (v.readyState !== 1) continue;
+                // No máx. 2 quadros sem confirmação por celular: se passar, descarta e avisa o host
+                // para baixar a qualidade (a conta de verdade é a rede até o celular).
+                if (v.inflight >= 2 && now - v.lastSend < 1000) { toHosts("d"); continue; }
+                if (v.inflight >= 2) v.inflight = 0;
+                v.inflight = (v.inflight ?? 0) + 1;
+                v.lastSend = now;
+                v.send(data, { binary: true });
+              }
+            });
+          } else {
+            ws.on("message", (data, isBinary) => {
+              if (isBinary) return;
+              ws.inflight = Math.max(0, (ws.inflight ?? 0) - 1);
             });
           }
           announce();

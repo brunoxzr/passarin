@@ -169,7 +169,7 @@ async function boot() {
     worst = Math.max(worst, raw);
     if (fpsT > 1) {
       const p = pose.state;
-      debug.textContent = `${Math.round(fpsN / fpsT)} fps · pior quadro ${Math.round(worst * 1000)} ms · ${renderer.info.render.calls} draws · rastreador ${p.connected ? (p.tracking ? "rastreando" : "sem corpo") : "offline"} · 3D ${p.use3d ? "sim" : "não"} · ${screen}/${intro.phase}/${flight.mode} · altura ${flight.y.toFixed(1)} · batidas ${flight.flaps} · braços ${((p.leftUpper + p.rightUpper) / 2).toFixed(2)}${lastError ? " · ERRO: " + lastError : ""}`;
+      debug.textContent = `${vr.info()} · ${Math.round(fpsN / fpsT)} fps · pior quadro ${Math.round(worst * 1000)} ms · ${renderer.info.render.calls} draws · rastreador ${p.connected ? (p.tracking ? "rastreando" : "sem corpo") : "offline"} · 3D ${p.use3d ? "sim" : "não"} · ${screen}/${intro.phase}/${flight.mode} · altura ${flight.y.toFixed(1)} · batidas ${flight.flaps} · braços ${((p.leftUpper + p.rightUpper) / 2).toFixed(2)}${lastError ? " · ERRO: " + lastError : ""}`;
       fpsT = 0;
       fpsN = 0;
       worst = 0;

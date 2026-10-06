@@ -66,6 +66,23 @@ async function onOffer(msg) {
 
 left.addEventListener("playing", () => { body.dataset.video = "true"; });
 
+// ---------- diagnóstico: o que está chegando (canto da tela) ----------
+const stat = { got: 0, shown: 0, bytes: 0, size: "", lastVid: 0 };
+const statEl = document.createElement("div");
+statEl.style.cssText = "position:fixed;top:2px;left:4px;z-index:5;font:11px monospace;color:#9f9;text-shadow:0 0 3px #000;pointer-events:none";
+document.body.append(statEl);
+setInterval(() => {
+  if (body.dataset.src === "jpeg") {
+    statEl.textContent = `JPEG ${stat.shown} fps (chegam ${stat.got}) · ${Math.round((stat.bytes * 8) / 1000)} kbps · ${stat.size}`;
+  } else {
+    const q = left.getVideoPlaybackQuality?.();
+    const n = q ? q.totalVideoFrames : 0;
+    statEl.textContent = pc ? `WebRTC ${n - stat.lastVid} fps · ${left.videoWidth}x${left.videoHeight}` : "";
+    stat.lastVid = n;
+  }
+  stat.got = stat.shown = stat.bytes = 0;
+}, 1000);
+
 // ---------- reserva: quadros JPEG quando o WebRTC não conecta ----------
 let jpegWs = null;
 let drawing = false;
@@ -84,6 +101,7 @@ function drawFrame(bmp) {
     const w = bmp.width * s;
     const h = bmp.height * s;
     const g = c.getContext("2d");
+    g.imageSmoothingQuality = "high";
     g.fillStyle = "#000";
     g.fillRect(0, 0, W, H);
     g.drawImage(bmp, (W - w) / 2, (H - h) / 2, w, h);
@@ -97,15 +115,21 @@ function startJpeg() {
   jpegWs = new WebSocket(`${proto}://${location.host}/vr-frames?role=viewer`);
   jpegWs.binaryType = "blob";
   jpegWs.onmessage = async (e) => {
-    if (drawing || !(e.data instanceof Blob)) return; // atrasado: pula quadro
+    if (!(e.data instanceof Blob)) return;
+    stat.got++;
+    stat.bytes += e.data.size;
+    if (drawing) { jpegWs.send("a"); return; } // atrasado: pula quadro
     drawing = true;
     try {
       const bmp = await createImageBitmap(e.data);
       drawFrame(bmp);
+      stat.shown++;
+      stat.size = `${bmp.width}x${bmp.height}`;
       bmp.close();
       body.dataset.video = "true";
     } catch { /* quadro ruim */ }
     drawing = false;
+    if (jpegWs?.readyState === 1) jpegWs.send("a"); // confirma: o PC pode mandar o próximo
   };
   jpegWs.onclose = () => { jpegWs = null; setTimeout(startJpeg, 1500); };
 }
@@ -116,7 +140,7 @@ setInterval(() => {
   const waiting = body.dataset.live === "true" && body.dataset.video !== "true";
   if (!waiting) { waitStart = 0; return; }
   waitStart ||= performance.now();
-  if (performance.now() - waitStart > 3000) startJpeg();
+  if (performance.now() - waitStart > 1500) startJpeg();
 }, 500);
 // Mantém o vídeo rodando o tempo todo (mesmo no menu), para aparecer na hora ao clicar em Jogar.
 for (const v of [left, right]) v.addEventListener("pause", () => { if (v.srcObject) v.play().catch(() => {}); });
